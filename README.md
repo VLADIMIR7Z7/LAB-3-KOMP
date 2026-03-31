@@ -73,45 +73,45 @@
 Формальное описание грамматики G[Start]:
 
 **Нетерминальный словарь VN:**
-VN = {
-Start, // начало строки
-FPrefix, // после символа f
-OpenQuote, // после "
-OpenBrace, // после {
-Identifier, // идентификатор (последовательность букв)
-Letter, // одна латинская буква
-AfterColon, // после :
-AfterDot, // после .
-FirstDigit, // первая цифра
-Digits, // последовательность цифр
-Exponent, // символ e
-CloseBrace, // после }
-CloseQuote, // после "
-End // конец строки
-}
+- VN = {
+- Start, // начало строки
+- FPrefix, // после символа f
+- OpenQuote, // после "
+- OpenBrace, // после {
+- Identifier, // идентификатор (последовательность букв)
+- Letter, // одна латинская буква
+- AfterColon, // после :
+- AfterDot, // после .
+- FirstDigit, // первая цифра
+- Digits, // последовательность цифр
+- Exponent, // символ e
+- CloseBrace, // после }
+- CloseQuote, // после "
+- End // конец строки
+- }
 
 **Терминальный словарь VT:**
-VT = {
-f, ", {, }, :, ., e,
-a, b, c, d, e, f, g, h, i, j, k, l, m,
-n, o, p, q, r, s, t, u, v, w, x, y, z,
-0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-}
+- VT = {
+- f, ", {, }, :, ., e,
+- a, b, c, d, e, f, g, h, i, j, k, l, m,
+- n, o, p, q, r, s, t, u, v, w, x, y, z,
+- 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+- }
 
 **Множество правил P:**
-Start → f FPrefix
-FPrefix → " OpenQuote
-OpenQuote → { OpenBrace
-OpenBrace → Letter Identifier
-Identifier → Letter Identifier | : AfterColon
-Letter → a | b | c | ... | z
-AfterColon → . AfterDot
-AfterDot → 0 Digits | 1 Digits | ... | 9 Digits
-Digits → 0 Digits | 1 Digits | ... | 9 Digits | e Exponent
-Exponent → } CloseBrace
-CloseBrace → " CloseQuote
-CloseQuote → End
-End → ε
+- Start → f FPrefix
+- FPrefix → " OpenQuote
+- OpenQuote → { OpenBrace
+- OpenBrace → Letter Identifier
+- Identifier → Letter Identifier | : AfterColon
+- Letter → a | b | c | ... | z
+- AfterColon → . AfterDot
+- AfterDot → 0 Digits | 1 Digits | ... | 9 Digits
+- Digits → 0 Digits | 1 Digits | ... | 9 Digits | e Exponent
+- Exponent → } CloseBrace
+- CloseBrace → " CloseQuote
+- CloseQuote → End
+- End → ε
 
 ---
 
@@ -218,6 +218,8 @@ End → ε
 | (нет) | — | — |
 
 **Общее количество ошибок:** 0
+<img width="875" height="685" alt="image" src="https://github.com/user-attachments/assets/eb884928-916a-4887-b2e6-b3b11871253e" />
+
 
 ---
 
@@ -232,6 +234,8 @@ End → ε
 | 123 | строка 1, позиция 9 | Ожидается '.' после ':' |
 
 **Общее количество ошибок:** 1
+<img width="876" height="686" alt="image" src="https://github.com/user-attachments/assets/751e033a-59bb-4cef-8cc0-b27026574adb" />
+
 
 ---
 
