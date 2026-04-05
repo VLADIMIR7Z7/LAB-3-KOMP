@@ -18,6 +18,20 @@ namespace TextEditor
         private FStringScanner scanner;
         private FStringParser parser;
 
+        public MainWindow()
+        {
+            InitializeComponent();
+            scanner = new FStringScanner();
+            parser = new FStringParser();
+            InitializeNewDocument();
+            ResultsGrid.ItemsSource = new List<Token>();
+            SyntaxErrorsGrid.ItemsSource = new List<SyntaxErrorDisplay>();
+        }
+
+        // =========================
+        // МОДЕЛИ
+        // =========================
+
         public class Token
         {
             public int Code { get; set; }
@@ -49,7 +63,24 @@ namespace TextEditor
             public int ErrorCount { get; set; }
         }
 
-        // Лексический анализатор
+        public static class TokenCodes
+        {
+            public const int F = 1;            // ключевое слово f
+            public const int E = 2;            // экспонента e
+            public const int Identifier = 3;   // идентификатор
+            public const int Quote = 4;        // "
+            public const int OpenBrace = 5;    // {
+            public const int CloseBrace = 6;   // }
+            public const int Colon = 7;        // :
+            public const int Dot = 8;          // .
+            public const int Digit = 9;        // 0..9
+            public const int Error = 999;      // недопустимый символ
+        }
+
+        // =========================
+        // ЛЕКСИЧЕСКИЙ АНАЛИЗАТОР
+        // =========================
+
         public class FStringScanner
         {
             private string _input;
@@ -61,13 +92,12 @@ namespace TextEditor
 
             public List<Token> Scan(string input)
             {
-                _input = input ?? "";
+                _input = input ?? string.Empty;
                 _position = 0;
                 _line = 1;
                 _lineStart = 0;
                 _tokens = new List<Token>();
-
-                if (_input.Length > 0) _current = _input[0];
+                _current = _input.Length > 0 ? _input[0] : '\0';
 
                 while (_position < _input.Length)
                 {
@@ -76,19 +106,22 @@ namespace TextEditor
                         HandleWhitespace();
                         continue;
                     }
+
                     ProcessCharacter();
                 }
+
                 return _tokens;
             }
 
             private void Advance()
             {
                 _position++;
-                if (_position < _input.Length) _current = _input[_position];
-                else _current = '\0';
+                _current = _position < _input.Length ? _input[_position] : '\0';
             }
 
             private int Pos() => _position - _lineStart + 1;
+
+            private bool IsLatinLowerLetter(char c) => c >= 'a' && c <= 'z';
 
             private void HandleWhitespace()
             {
@@ -99,127 +132,184 @@ namespace TextEditor
                         _line++;
                         _lineStart = _position + 1;
                     }
+
                     Advance();
                 }
             }
 
             private void ProcessCharacter()
             {
+                int pos = Pos();
+
                 if (_current == '"')
                 {
-                    _tokens.Add(new Token { Code = 6, Type = "кавычка", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.Quote, "кавычка", "\"", pos, pos);
                     Advance();
                     return;
                 }
+
                 if (_current == '{')
                 {
-                    _tokens.Add(new Token { Code = 4, Type = "открывающая скобка", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.OpenBrace, "открывающая фигурная скобка", "{", pos, pos);
                     Advance();
                     return;
                 }
+
                 if (_current == '}')
                 {
-                    _tokens.Add(new Token { Code = 5, Type = "закрывающая скобка", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.CloseBrace, "закрывающая фигурная скобка", "}", pos, pos);
                     Advance();
                     return;
                 }
+
                 if (_current == ':')
                 {
-                    _tokens.Add(new Token { Code = 8, Type = "разделитель", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.Colon, "двоеточие", ":", pos, pos);
                     Advance();
                     return;
                 }
+
                 if (_current == '.')
                 {
-                    _tokens.Add(new Token { Code = 8, Type = "точка", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.Dot, "точка", ".", pos, pos);
                     Advance();
                     return;
                 }
+
                 if (char.IsDigit(_current))
                 {
-                    _tokens.Add(new Token { Code = 8, Type = "цифра", Value = _current.ToString(), Line = _line, StartPosition = Pos(), EndPosition = Pos() });
+                    AddToken(TokenCodes.Digit, "цифра", _current.ToString(), pos, pos);
                     Advance();
                     return;
                 }
-                if (char.IsLetter(_current))
+
+                if (IsLatinLowerLetter(_current))
                 {
-                    ParseLetterSequence();
+                    ParseWord();
                     return;
                 }
-                // Недопустимый символ - создаем токен ошибки
-                AddError($"Недопустимый символ '{_current}'", _line, Pos());
+
+                AddError($"Недопустимый символ '{_current}'", _line, pos);
                 Advance();
             }
 
-            private void ParseLetterSequence()
+            private void ParseWord()
             {
                 int start = Pos();
                 int startLine = _line;
-                string sequence = "";
+                string value = "";
 
                 while (_position < _input.Length && char.IsLetter(_current))
                 {
-                    sequence += _current;
+                    value += _current;
                     Advance();
                 }
 
-                if (sequence.Length == 1)
+                // 1. Ровно один символ f в начале строки -> ключевое слово
+                if (_tokens.Count == 0 && value == "f")
                 {
-                    char letter = char.ToLower(sequence[0]);
-                    if (letter == 'f')
+                    _tokens.Add(new Token
                     {
-                        _tokens.Add(new Token { Code = 1, Type = "ключевое слово f", Value = sequence, Line = startLine, StartPosition = start, EndPosition = start + sequence.Length - 1 });
-                    }
-                    else if (letter == 'e')
-                    {
-                        _tokens.Add(new Token { Code = 2, Type = "экспонента e", Value = sequence, Line = startLine, StartPosition = start, EndPosition = start + sequence.Length - 1 });
-                    }
-                    else
-                    {
-                        _tokens.Add(new Token { Code = 3, Type = "идентификатор", Value = sequence, Line = startLine, StartPosition = start, EndPosition = start + sequence.Length - 1 });
-                    }
+                        Code = TokenCodes.F,
+                        Type = "ключевое слово f",
+                        Value = value,
+                        Line = startLine,
+                        StartPosition = start,
+                        EndPosition = start
+                    });
+                    return;
                 }
-                else
+
+                // 2. Ровно один символ e после цифры -> экспонента
+                if (value == "e" && _tokens.Count > 0 && _tokens.Last().Code == TokenCodes.Digit)
                 {
-                    _tokens.Add(new Token { Code = 3, Type = "идентификатор", Value = sequence, Line = startLine, StartPosition = start, EndPosition = start + sequence.Length - 1 });
+                    _tokens.Add(new Token
+                    {
+                        Code = TokenCodes.E,
+                        Type = "экспонента e",
+                        Value = value,
+                        Line = startLine,
+                        StartPosition = start,
+                        EndPosition = start
+                    });
+                    return;
                 }
+
+                // 3. Всё остальное -> идентификатор
+                _tokens.Add(new Token
+                {
+                    Code = TokenCodes.Identifier,
+                    Type = "идентификатор",
+                    Value = value,
+                    Line = startLine,
+                    StartPosition = start,
+                    EndPosition = start + value.Length - 1
+                });
+            }
+
+            private void AddToken(int code, string type, string value, int start, int end)
+            {
+                _tokens.Add(new Token
+                {
+                    Code = code,
+                    Type = type,
+                    Value = value,
+                    Line = _line,
+                    StartPosition = start,
+                    EndPosition = end
+                });
             }
 
             private void AddError(string msg, int line, int col)
             {
-                _tokens.Add(new Token { Code = 999, Type = "ОШИБКА", Value = _current.ToString(), Line = line, StartPosition = col, EndPosition = col, IsError = true, ErrorMessage = msg });
+                _tokens.Add(new Token
+                {
+                    Code = TokenCodes.Error,
+                    Type = "ОШИБКА",
+                    Value = _current.ToString(),
+                    Line = line,
+                    StartPosition = col,
+                    EndPosition = col,
+                    IsError = true,
+                    ErrorMessage = msg
+                });
             }
         }
 
-        // Синтаксический анализатор 
+        // =========================
+        // СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР
+        // Реализация: граф автоматной грамматики
+        // Нейтрализация ошибок: метод Айронса
+        // =========================
 
-        // Синтаксический анализатор (парсер) - строго по грамматике с методом Айронса
         public class FStringParser
         {
+            private enum ParserState
+            {
+                ExpectF = 0,             // ожидается f
+                ExpectOpeningQuote = 1,  // ожидается "
+                ExpectOpenBrace = 2,     // ожидается {
+                ExpectIdentifier = 3,    // ожидается идентификатор
+                ExpectColon = 4,         // ожидается :
+                ExpectDot = 5,           // ожидается .
+                ExpectFirstDigit = 6,    // ожидается первая цифра
+                ExpectMoreDigitsOrE = 7, // ожидается цифра или e
+                ExpectCloseBrace = 8,    // ожидается }
+                ExpectClosingQuote = 9,  // ожидается "
+                Accept = 10              // конец строки
+            }
+
             private List<Token> _tokens;
             private int _position;
             private Token _current;
-            private List<SyntaxErrorDisplay> _errors;
-            private int _currentLine;
-            private int _currentPosition;
-
-            // Множества синхронизации для метода Айронса
-            private readonly HashSet<int> _syncSetStart = new HashSet<int> { 1 };      // f
-            private readonly HashSet<int> _syncSetFPrefix = new HashSet<int> { 6 };    // "
-            private readonly HashSet<int> _syncSetOpenQuote = new HashSet<int> { 4 };  // {
-            private readonly HashSet<int> _syncSetOpenBrace = new HashSet<int> { 3, 8 }; // identifier или :
-            private readonly HashSet<int> _syncSetAfterColon = new HashSet<int> { 8 };  // .
-            private readonly HashSet<int> _syncSetAfterDot = new HashSet<int> { 8 };    // digit
-            private readonly HashSet<int> _syncSetDigits = new HashSet<int> { 2 };      // e
-            private readonly HashSet<int> _syncSetExponent = new HashSet<int> { 5 };    // }
-            private readonly HashSet<int> _syncSetCloseBrace = new HashSet<int> { 6 };  // "
-            private readonly HashSet<int> _syncSetAll = new HashSet<int> { 1, 6, 4, 5, 3, 8, 2 };
+            private readonly List<SyntaxErrorDisplay> _errors = new List<SyntaxErrorDisplay>();
 
             public ParseResult Parse(List<Token> tokens)
             {
                 _tokens = tokens ?? new List<Token>();
                 _position = 0;
-                _errors = new List<SyntaxErrorDisplay>();
+                _errors.Clear();
+                GetNextToken();
 
                 if (_tokens.Count == 0)
                 {
@@ -227,24 +317,370 @@ namespace TextEditor
                     return GetResult();
                 }
 
-                GetNextToken();
-                Start();
+                ParserState state = ParserState.ExpectF;
+                int safetyCounter = 0;
+
+                while (state != ParserState.Accept && safetyCounter < 10000)
+                {
+                    safetyCounter++;
+
+                    ConsumeLexicalErrors();
+
+                    if (MatchesState(state, _current))
+                    {
+                        state = ConsumeExpectedToken(state);
+                        continue;
+                    }
+
+                    AddStateError(state, _current);
+
+                    if (_current == null)
+                        break;
+
+                    Recover(ref state);
+
+                    if (_current == null)
+                        break;
+                }
+
+                ConsumeLexicalErrors();
+
+                if (_current != null)
+                {
+                    AddError(
+                        _current.Value,
+                        _current.Line,
+                        _current.StartPosition,
+                        "конец строки",
+                        _current.Value,
+                        "Лишние символы после закрывающей кавычки"
+                    );
+                }
 
                 return GetResult();
             }
 
-            private ParseResult GetResult() => new ParseResult
+            private ParseResult GetResult()
             {
-                Success = _errors.Count == 0,
-                Message = _errors.Count == 0 ? "Синтаксических ошибок не найдено" : $"Найдено ошибок: {_errors.Count}",
-                Errors = _errors,
-                ErrorCount = _errors.Count
-            };
+                return new ParseResult
+                {
+                    Success = _errors.Count == 0,
+                    Message = _errors.Count == 0
+                        ? "Синтаксических ошибок не найдено"
+                        : $"Найдено ошибок: {_errors.Count}",
+                    Errors = _errors,
+                    ErrorCount = _errors.Count
+                };
+            }
+
+            private void GetNextToken()
+            {
+                _current = _position < _tokens.Count ? _tokens[_position++] : null;
+            }
+
+            private void ConsumeLexicalErrors()
+            {
+                while (_current != null && _current.IsError)
+                {
+                    AddError(
+                        _current.Value,
+                        _current.Line,
+                        _current.StartPosition,
+                        "допустимый символ",
+                        _current.Value,
+                        _current.ErrorMessage
+                    );
+
+                    GetNextToken();
+                }
+            }
+
+            private bool MatchesState(ParserState state, Token token)
+            {
+                switch (state)
+                {
+                    case ParserState.ExpectF:
+                        return token != null && token.Code == TokenCodes.F;
+
+                    case ParserState.ExpectOpeningQuote:
+                        return token != null && token.Code == TokenCodes.Quote;
+
+                    case ParserState.ExpectOpenBrace:
+                        return token != null && token.Code == TokenCodes.OpenBrace;
+
+                    case ParserState.ExpectIdentifier:
+                        return token != null && token.Code == TokenCodes.Identifier;
+
+                    case ParserState.ExpectColon:
+                        return token != null && token.Code == TokenCodes.Colon;
+
+                    case ParserState.ExpectDot:
+                        return token != null && token.Code == TokenCodes.Dot;
+
+                    case ParserState.ExpectFirstDigit:
+                        return token != null && token.Code == TokenCodes.Digit;
+
+                    case ParserState.ExpectMoreDigitsOrE:
+                        return token != null && (token.Code == TokenCodes.Digit || token.Code == TokenCodes.E);
+
+                    case ParserState.ExpectCloseBrace:
+                        return token != null && token.Code == TokenCodes.CloseBrace;
+
+                    case ParserState.ExpectClosingQuote:
+                        return token != null && token.Code == TokenCodes.Quote;
+
+                    case ParserState.Accept:
+                        return token == null;
+
+                    default:
+                        return false;
+                }
+            }
+
+            private ParserState ConsumeExpectedToken(ParserState state)
+            {
+                switch (state)
+                {
+                    case ParserState.ExpectF:
+                        GetNextToken();
+                        return ParserState.ExpectOpeningQuote;
+
+                    case ParserState.ExpectOpeningQuote:
+                        GetNextToken();
+                        return ParserState.ExpectOpenBrace;
+
+                    case ParserState.ExpectOpenBrace:
+                        GetNextToken();
+                        return ParserState.ExpectIdentifier;
+
+                    case ParserState.ExpectIdentifier:
+                        GetNextToken();
+                        return ParserState.ExpectColon;
+
+                    case ParserState.ExpectColon:
+                        GetNextToken();
+                        return ParserState.ExpectDot;
+
+                    case ParserState.ExpectDot:
+                        GetNextToken();
+                        return ParserState.ExpectFirstDigit;
+
+                    case ParserState.ExpectFirstDigit:
+                        GetNextToken();
+                        return ParserState.ExpectMoreDigitsOrE;
+
+                    case ParserState.ExpectMoreDigitsOrE:
+                        if (_current != null && _current.Code == TokenCodes.Digit)
+                        {
+                            GetNextToken();
+                            return ParserState.ExpectMoreDigitsOrE;
+                        }
+
+                        if (_current != null && _current.Code == TokenCodes.E)
+                        {
+                            GetNextToken();
+                            return ParserState.ExpectCloseBrace;
+                        }
+
+                        return ParserState.ExpectMoreDigitsOrE;
+
+                    case ParserState.ExpectCloseBrace:
+                        GetNextToken();
+                        return ParserState.ExpectClosingQuote;
+
+                    case ParserState.ExpectClosingQuote:
+                        GetNextToken();
+                        return ParserState.Accept;
+
+                    default:
+                        return ParserState.Accept;
+                }
+            }
+
+            private void Recover(ref ParserState state)
+            {
+                switch (state)
+                {
+                    case ParserState.ExpectF:
+                        // Ищем либо f, либо ближайшую открывающую кавычку,
+                        // чтобы продолжить разбор конструкции
+                        SkipUntil(TokenCodes.F, TokenCodes.Quote);
+
+                        if (_current != null && _current.Code == TokenCodes.F)
+                            state = ParserState.ExpectF;
+                        else if (_current != null && _current.Code == TokenCodes.Quote)
+                            state = ParserState.ExpectOpeningQuote;
+                        break;
+
+                    case ParserState.ExpectOpeningQuote:
+                        SkipUntil(TokenCodes.Quote, TokenCodes.OpenBrace);
+
+                        if (_current != null && _current.Code == TokenCodes.Quote)
+                            state = ParserState.ExpectOpeningQuote;
+                        else if (_current != null && _current.Code == TokenCodes.OpenBrace)
+                            state = ParserState.ExpectOpenBrace;
+                        break;
+
+                    case ParserState.ExpectOpenBrace:
+                        SkipUntil(TokenCodes.OpenBrace, TokenCodes.Identifier, TokenCodes.Colon);
+
+                        if (_current != null && _current.Code == TokenCodes.OpenBrace)
+                            state = ParserState.ExpectOpenBrace;
+                        else if (_current != null && _current.Code == TokenCodes.Identifier)
+                            state = ParserState.ExpectIdentifier;
+                        else if (_current != null && _current.Code == TokenCodes.Colon)
+                            state = ParserState.ExpectColon;
+                        break;
+
+                    case ParserState.ExpectIdentifier:
+                        SkipUntil(TokenCodes.Identifier, TokenCodes.Colon);
+
+                        if (_current != null && _current.Code == TokenCodes.Identifier)
+                            state = ParserState.ExpectIdentifier;
+                        else if (_current != null && _current.Code == TokenCodes.Colon)
+                            state = ParserState.ExpectColon;
+                        break;
+
+                    case ParserState.ExpectColon:
+                        SkipUntil(TokenCodes.Colon, TokenCodes.Dot);
+
+                        if (_current != null && _current.Code == TokenCodes.Colon)
+                            state = ParserState.ExpectColon;
+                        else if (_current != null && _current.Code == TokenCodes.Dot)
+                            state = ParserState.ExpectDot;
+                        break;
+
+                    case ParserState.ExpectDot:
+                        SkipUntil(TokenCodes.Dot, TokenCodes.Digit, TokenCodes.E, TokenCodes.CloseBrace);
+
+                        if (_current != null && _current.Code == TokenCodes.Dot)
+                            state = ParserState.ExpectDot;
+                        else if (_current != null && _current.Code == TokenCodes.Digit)
+                            state = ParserState.ExpectFirstDigit;
+                        else if (_current != null && _current.Code == TokenCodes.E)
+                            state = ParserState.ExpectMoreDigitsOrE;
+                        else if (_current != null && _current.Code == TokenCodes.CloseBrace)
+                            state = ParserState.ExpectCloseBrace;
+                        break;
+
+                    case ParserState.ExpectFirstDigit:
+                        SkipUntil(TokenCodes.Digit, TokenCodes.E, TokenCodes.CloseBrace);
+
+                        if (_current != null && _current.Code == TokenCodes.Digit)
+                            state = ParserState.ExpectFirstDigit;
+                        else if (_current != null && _current.Code == TokenCodes.E)
+                            state = ParserState.ExpectMoreDigitsOrE;
+                        else if (_current != null && _current.Code == TokenCodes.CloseBrace)
+                            state = ParserState.ExpectCloseBrace;
+                        break;
+
+                    case ParserState.ExpectMoreDigitsOrE:
+                        SkipUntil(TokenCodes.Digit, TokenCodes.E, TokenCodes.CloseBrace);
+
+                        if (_current != null && _current.Code == TokenCodes.Digit)
+                            state = ParserState.ExpectMoreDigitsOrE;
+                        else if (_current != null && _current.Code == TokenCodes.E)
+                            state = ParserState.ExpectMoreDigitsOrE;
+                        else if (_current != null && _current.Code == TokenCodes.CloseBrace)
+                            state = ParserState.ExpectCloseBrace;
+                        break;
+
+                    case ParserState.ExpectCloseBrace:
+                        SkipUntil(TokenCodes.CloseBrace, TokenCodes.Quote);
+
+                        if (_current != null && _current.Code == TokenCodes.CloseBrace)
+                            state = ParserState.ExpectCloseBrace;
+                        else if (_current != null && _current.Code == TokenCodes.Quote)
+                            state = ParserState.ExpectClosingQuote;
+                        break;
+
+                    case ParserState.ExpectClosingQuote:
+                        SkipUntil(TokenCodes.Quote);
+
+                        if (_current != null && _current.Code == TokenCodes.Quote)
+                            state = ParserState.ExpectClosingQuote;
+                        break;
+                }
+            }
+
+            private void SkipUntil(params int[] tokenCodes)
+            {
+                while (_current != null)
+                {
+                    if (_current.IsError)
+                    {
+                        AddError(
+                            _current.Value,
+                            _current.Line,
+                            _current.StartPosition,
+                            "допустимый символ",
+                            _current.Value,
+                            _current.ErrorMessage
+                        );
+                        GetNextToken();
+                        continue;
+                    }
+
+                    if (tokenCodes.Contains(_current.Code))
+                        return;
+
+                    GetNextToken();
+                }
+            }
+
+            private void AddStateError(ParserState state, Token token)
+            {
+                string found = token?.Value ?? "конец строки";
+                int line = token?.Line ?? 1;
+                int pos = token?.StartPosition ?? 1;
+
+                switch (state)
+                {
+                    case ParserState.ExpectF:
+                        AddError(found, line, pos, "ключевое слово 'f'", found, "Строка должна начинаться с 'f'");
+                        break;
+
+                    case ParserState.ExpectOpeningQuote:
+                        AddError(found, line, pos, "открывающая кавычка '\"'", found, "Ожидается '\"' после 'f'");
+                        break;
+
+                    case ParserState.ExpectOpenBrace:
+                        AddError(found, line, pos, "открывающая фигурная скобка '{'", found, "Ожидается '{' после '\"'");
+                        break;
+
+                    case ParserState.ExpectIdentifier:
+                        AddError(found, line, pos, "идентификатор", found, "Ожидается идентификатор после '{'");
+                        break;
+
+                    case ParserState.ExpectColon:
+                        AddError(found, line, pos, "двоеточие ':'", found, "Ожидается ':' после идентификатора");
+                        break;
+
+                    case ParserState.ExpectDot:
+                        AddError(found, line, pos, "точка '.'", found, "Ожидается '.' после ':'");
+                        break;
+
+                    case ParserState.ExpectFirstDigit:
+                        AddError(found, line, pos, "цифра", found, "После точки должна быть хотя бы одна цифра");
+                        break;
+
+                    case ParserState.ExpectMoreDigitsOrE:
+                        AddError(found, line, pos, "цифра или символ 'e'", found, "Ожидается цифра или 'e' после цифр");
+                        break;
+
+                    case ParserState.ExpectCloseBrace:
+                        AddError(found, line, pos, "закрывающая фигурная скобка '}'", found, "Ожидается '}' после 'e'");
+                        break;
+
+                    case ParserState.ExpectClosingQuote:
+                        AddError(found, line, pos, "закрывающая кавычка '\"'", found, "Ожидается '\"' после '}'");
+                        break;
+                }
+            }
 
             private void AddError(string invalidFragment, int line, int position, string expected, string found, string description)
             {
-                // Проверка на дубликаты ошибок в одной позиции
-                if (_errors.Any(e => e.Line == line && e.Position == position))
+                if (_errors.Any(e => e.Line == line && e.Position == position && e.Description == description))
                     return;
 
                 _errors.Add(new SyntaxErrorDisplay
@@ -258,339 +694,11 @@ namespace TextEditor
                     Position = position
                 });
             }
-
-            private void GetNextToken()
-            {
-                if (_position < _tokens.Count)
-                {
-                    _current = _tokens[_position];
-                    _currentLine = _current.Line;
-                    _currentPosition = _current.StartPosition;
-                    _position++;
-                }
-                else
-                {
-                    _current = null;
-                }
-            }
-
-            // Пропуск токенов до синхронизирующего множества (метод Айронса)
-            private void SkipToSyncSet(HashSet<int> syncSet)
-            {
-                while (_current != null && !syncSet.Contains(_current.Code) && !_current.IsError)
-                {
-                    GetNextToken();
-                }
-            }
-
-            // Проверка на конец строки
-            private bool IsEndOfInput() => _current == null;
-
-            // === Грамматические правила (строго по грамматике) ===
-
-            // Start → f FPrefix
-            private void Start()
-            {
-                // Обработка пустой строки уже сделана в Parse
-
-                // Если нет токена f
-                if (_current == null || _current.Code != 1)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "ключевое слово 'f'", found, "Строка должна начинаться с 'f'");
-
-                    // Метод Айронса: пропускаем до f
-                    SkipToSyncSet(_syncSetStart);
-
-                    if (_current != null && _current.Code == 1)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем f
-                }
-
-                FPrefix();
-            }
-
-            // FPrefix → " OpenQuote
-            private void FPrefix()
-            {
-                if (_current == null || _current.Code != 6)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "открывающая кавычка '\"'", found, "Ожидается '\"' после 'f'");
-
-                    SkipToSyncSet(_syncSetFPrefix);
-
-                    if (_current != null && _current.Code == 6)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем "
-                }
-
-                OpenQuote();
-            }
-
-            // OpenQuote → { OpenBrace
-            private void OpenQuote()
-            {
-                if (_current == null || _current.Code != 4)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "открывающая скобка '{'", found, "Ожидается '{' после '\"'");
-
-                    SkipToSyncSet(_syncSetOpenQuote);
-
-                    if (_current != null && _current.Code == 4)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем {
-                }
-
-                OpenBrace();
-            }
-
-            // OpenBrace → Letter Identifier
-            private void OpenBrace()
-            {
-                // Должна быть буква (идентификатор)
-                if (_current == null || _current.Code != 3)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "идентификатор (буква)", found, "Ожидается идентификатор после '{'");
-
-                    SkipToSyncSet(_syncSetOpenBrace);
-
-                    // Если нашли идентификатор - обрабатываем
-                    if (_current != null && _current.Code == 3)
-                    {
-                        // продолжаем
-                    }
-                    else
-                    {
-                        // Если нет идентификатора, пытаемся найти ':'
-                        if (_current != null && _current.Code == 8 && _current.Value == ":")
-                        {
-                            // пустой идентификатор - ошибка уже записана, продолжаем
-                        }
-                        else
-                        {
-                            return;
-                        }
-                    }
-                }
-
-                Identifier();
-            }
-
-            // Identifier → Letter Identifier | : AfterColon
-            private void Identifier()
-            {
-                // Собираем все буквы (одну или более)
-                bool hasLetter = false;
-                while (_current != null && _current.Code == 3)
-                {
-                    hasLetter = true;
-                    GetNextToken();
-                }
-
-                // Проверяем, что был хотя бы один идентификатор
-                if (!hasLetter)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "идентификатор", found, "Ожидается хотя бы одна буква");
-                }
-
-                // Теперь должен быть :
-                if (_current == null || _current.Code != 8 || _current.Value != ":")
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "разделитель ':'", found, "Ожидается ':' после идентификатора");
-
-                    SkipToSyncSet(_syncSetAll);
-                    return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем :
-                }
-
-                AfterColon();
-            }
-
-            // AfterColon → . AfterDot
-            private void AfterColon()
-            {
-                if (_current == null || _current.Code != 8 || _current.Value != ".")
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "точка '.'", found, "Ожидается '.' после ':'");
-
-                    SkipToSyncSet(_syncSetAfterColon);
-                    return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем .
-                }
-
-                AfterDot();
-            }
-
-            // AfterDot → FirstDigit Digits
-            private void AfterDot()
-            {
-                // Первая цифра
-                if (_current == null || _current.Code != 8 || !char.IsDigit(_current.Value[0]))
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "цифра", found, "После точки должна быть хотя бы одна цифра");
-
-                    SkipToSyncSet(_syncSetAfterDot);
-
-                    // Если нашли цифру - продолжаем
-                    if (_current != null && _current.Code == 8 && char.IsDigit(_current.Value[0]))
-                    {
-                        GetNextToken();
-                    }
-                    else
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем первую цифру
-                }
-
-                Digits();
-            }
-
-            // Digits → 0-9 Digits | e Exponent
-            private void Digits()
-            {
-                // Собираем все последующие цифры
-                while (_current != null && _current.Code == 8 && char.IsDigit(_current.Value[0]))
-                {
-                    GetNextToken();
-                }
-
-                // Теперь должна быть e
-                if (_current == null || _current.Code != 2)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "экспонента 'e'", found, "Ожидается 'e' после цифр");
-
-                    SkipToSyncSet(_syncSetDigits);
-
-                    if (_current != null && _current.Code == 2)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем e
-                }
-
-                Exponent();
-            }
-
-            // Exponent → } CloseBrace
-            private void Exponent()
-            {
-                if (_current == null || _current.Code != 5)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "закрывающая скобка '}'", found, "Ожидается '}' после 'e'");
-
-                    SkipToSyncSet(_syncSetExponent);
-
-                    if (_current != null && _current.Code == 5)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем }
-                }
-
-                CloseBrace();
-            }
-
-            // CloseBrace → " CloseQuote
-            private void CloseBrace()
-            {
-                if (_current == null || _current.Code != 6)
-                {
-                    string found = _current?.Value ?? "конец строки";
-                    AddError(found, _current?.Line ?? 1, _current?.StartPosition ?? 1,
-                             "закрывающая кавычка '\"'", found, "Ожидается '\"' после '}'");
-
-                    SkipToSyncSet(_syncSetCloseBrace);
-
-                    if (_current != null && _current.Code == 6)
-                        GetNextToken();
-                    else
-                        return;
-                }
-                else
-                {
-                    GetNextToken(); // пропускаем "
-                }
-
-                CloseQuote();
-            }
-
-            // CloseQuote → End (ε)
-            private void CloseQuote()
-            {
-                // После закрывающей кавычки ничего не должно быть
-                if (_current != null && !_current.IsError)
-                {
-                    AddError(_current.Value, _current.Line, _current.StartPosition,
-                             "конец строки", _current.Value, "Лишние символы после закрывающей кавычки");
-
-                    // Пропускаем все оставшиеся токены
-                    while (_current != null)
-                    {
-                        GetNextToken();
-                    }
-                }
-            }
         }
 
-        public MainWindow()
-        {
-            InitializeComponent();
-            scanner = new FStringScanner();
-            parser = new FStringParser();
-            InitializeNewDocument();
-            ResultsGrid.ItemsSource = new List<Token>();
-            SyntaxErrorsGrid.ItemsSource = new List<SyntaxErrorDisplay>();
-        }
+        // =========================
+        // ОСНОВНАЯ ЛОГИКА ОКНА
+        // =========================
 
         private void InitializeNewDocument()
         {
@@ -695,6 +803,7 @@ namespace TextEditor
                 SaveFile_Click(null, null);
                 return true;
             }
+
             return result != MessageBoxResult.Cancel;
         }
 
@@ -708,37 +817,88 @@ namespace TextEditor
 
         private void TaskDescription_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Постановка задачи", "ЛАБОРАТОРНАЯ РАБОТА №3\nСинтаксический анализатор\nВариант: f\"{id:.Ne}\"");
+            ShowInfoWindow(
+                "Постановка задачи",
+                "ЛАБОРАТОРНАЯ РАБОТА №3\n" +
+                "Разработка синтаксического анализатора (парсера)\n" +
+                "Вариант: f\"{id:.Ne}\"\n\n" +
+                "Парсер реализован на основе графа автоматной грамматики.\n" +
+                "Нейтрализация синтаксических ошибок выполняется методом Айронса."
+            );
         }
 
         private void Grammar_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Грамматика", "G[Start]: f\"{id:.Ne}\"\nStart → f FPrefix\nFPrefix → \" OpenQuote\nOpenQuote → { OpenBrace\nOpenBrace → Identifier\nIdentifier → Letter Identifier | : AfterColon\nAfterColon → . AfterDot\nAfterDot → 0-9 Digits\nDigits → 0-9 Digits | e Exponent\nExponent → } CloseBrace\nCloseBrace → \" CloseQuote\nCloseQuote → End → ε");
+            ShowInfoWindow(
+                "Грамматика",
+                "G[Start] для строк вида f\"{id:.Ne}\"\n\n" +
+                "Start      → f FPrefix\n" +
+                "FPrefix    → \" OpenQuote\n" +
+                "OpenQuote  → { OpenBrace\n" +
+                "OpenBrace  → Identifier\n" +
+                "Identifier → Letter Identifier | : AfterColon\n" +
+                "AfterColon → . AfterDot\n" +
+                "AfterDot   → Digit Digits\n" +
+                "Digits     → Digit Digits | e Exponent\n" +
+                "Exponent   → } CloseBrace\n" +
+                "CloseBrace → \" CloseQuote\n" +
+                "CloseQuote → End\n" +
+                "End        → ε"
+            );
         }
 
         private void GrammarClassification_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Классификация", "Тип 3 (регулярная грамматика) по Хомскому");
+            ShowInfoWindow("Классификация", "Тип 3 по Хомскому. Регулярная (автоматная, праволинейная) грамматика.");
         }
 
         private void AnalysisMethod_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Метод анализа", "Рекурсивный спуск + метод Айронса");
+            ShowInfoWindow(
+                "Метод анализа",
+                "Метод анализа: граф автоматной грамматики.\n\n" +
+                "Программа выполняет обход по состояниям автомата:\n" +
+                "f → \" → { → id → : → . → цифры → e → } → \".\n\n" +
+                "При ошибке используется восстановление методом Айронса:\n" +
+                "анализатор фиксирует ошибку и продолжает разбор с ближайшего допустимого состояния."
+            );
         }
 
         private void TestExample_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Тестовые примеры", "Корректные:\nf\"{m:.2e}\"\nf\"{hello:.123e}\"\n\nНекорректные:\n(пустая строка)\nf\"{m:2e}\"\nf\"{m:.e}\"");
+            ShowInfoWindow(
+                "Тестовые примеры",
+                "Корректные:\n" +
+                "f\"{m:.2e}\"\n" +
+                "f\"{hello:.123e}\"\n" +
+                "f\"{e:.1e}\"\n\n" +
+                "Некорректные:\n" +
+                "(пустая строка)\n" +
+                "\"{name:.5e}\"\n" +
+                "f\"{abc:123e}\"\n" +
+                "f\"{:.123e}\"\n" +
+                "f\"{abc:.e}\"\n" +
+                "f\"{abc:.e+\""
+            );
         }
 
         private void References_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Литература", "1. Ахо А. Компиляторы\n2. Вирт Н. Построение компиляторов");
+            ShowInfoWindow(
+                "Литература",
+                "1. Ахо А., Лам М., Сети Р., Ульман Д. Компиляторы.\n" +
+                "2. Вирт Н. Построение компиляторов.\n" +
+                "3. Методические указания по лабораторной работе №3."
+            );
         }
 
         private void SourceCode_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Исходный код", "MainWindow.xaml - интерфейс\nMainWindow.xaml.cs - логика");
+            ShowInfoWindow(
+                "Исходный код",
+                "MainWindow.xaml — интерфейс приложения\n" +
+                "MainWindow.xaml.cs — логика редактора, лексический и синтаксический анализ"
+            );
         }
 
         private void ShowInfoWindow(string title, string content)
@@ -746,12 +906,21 @@ namespace TextEditor
             Window infoWindow = new Window
             {
                 Title = title,
-                Content = new TextBox { Text = content, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10), FontFamily = new FontFamily("Consolas"), VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
-                Width = 600,
+                Content = new TextBox
+                {
+                    Text = content,
+                    IsReadOnly = true,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(10),
+                    FontFamily = new FontFamily("Consolas"),
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                },
+                Width = 650,
                 Height = 500,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this
             };
+
             infoWindow.ShowDialog();
         }
 
@@ -759,9 +928,12 @@ namespace TextEditor
         {
             ResultsGrid.ItemsSource = null;
             ResultsGrid.ItemsSource = new List<Token>();
+
             SyntaxErrorsGrid.ItemsSource = null;
             SyntaxErrorsGrid.ItemsSource = new List<SyntaxErrorDisplay>();
+
             ErrorCountText.Text = "Общее количество ошибок: 0";
+
             TextRange range = new TextRange(EditorBox.Document.ContentStart, EditorBox.Document.ContentEnd);
             range.ApplyPropertyValue(TextElement.BackgroundProperty, null);
         }
@@ -776,19 +948,28 @@ namespace TextEditor
 
             try
             {
-                // Лексический анализ
+                // 1. Лексический анализ
                 var tokens = scanner.Scan(text);
                 ResultsGrid.ItemsSource = tokens;
 
-                // Синтаксический анализ
+                // 2. Синтаксический анализ
                 var parseResult = parser.Parse(tokens);
                 SyntaxErrorsGrid.ItemsSource = parseResult.Errors;
-                ErrorCountText.Text = $"Общее количество ошибок: {parseResult.ErrorCount}";
-                StatusText.Text = parseResult.Success ? "✓ Успешно!" : $"✗ Ошибок: {parseResult.ErrorCount}";
+
+                if (parseResult.Success)
+                {
+                    ErrorCountText.Text = "Синтаксических ошибок не найдено";
+                    StatusText.Text = "✓ Успешно! Синтаксических ошибок не найдено";
+                }
+                else
+                {
+                    ErrorCountText.Text = $"Общее количество ошибок: {parseResult.ErrorCount}";
+                    StatusText.Text = $"✗ Ошибок: {parseResult.ErrorCount}";
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка: {ex.Message}");
+                MessageBox.Show($"Ошибка анализа: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 StatusText.Text = "Ошибка анализа";
             }
         }
@@ -796,32 +977,39 @@ namespace TextEditor
         private void NavigateToPosition(int line, int position)
         {
             TextPointer pointer = EditorBox.Document.ContentStart;
+
             for (int i = 1; i < line; i++)
             {
-                pointer = pointer.GetLineStartPosition(1);
-                if (pointer == null) break;
+                TextPointer nextLine = pointer.GetLineStartPosition(1);
+                if (nextLine == null)
+                    break;
+
+                pointer = nextLine;
             }
-            if (pointer != null)
+
+            for (int i = 1; i < position; i++)
             {
-                for (int i = 1; i < position; i++)
-                {
-                    pointer = pointer.GetNextInsertionPosition(LogicalDirection.Forward);
-                    if (pointer == null) break;
-                }
-                if (pointer != null)
-                {
-                    EditorBox.CaretPosition = pointer;
-                    EditorBox.Focus();
-                }
+                TextPointer next = pointer.GetNextInsertionPosition(LogicalDirection.Forward);
+                if (next == null)
+                    break;
+
+                pointer = next;
             }
+
+            EditorBox.CaretPosition = pointer;
+            EditorBox.Focus();
         }
 
         private void ResultsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (ResultsGrid.SelectedItem is Token token && token.IsError)
+            if (ResultsGrid.SelectedItem is Token token)
             {
                 NavigateToPosition(token.Line, token.StartPosition);
-                StatusText.Text = $"Переход к ошибке: строка {token.Line}, позиция {token.StartPosition}";
+
+                if (token.IsError)
+                    StatusText.Text = $"Переход к лексической ошибке: строка {token.Line}, позиция {token.StartPosition}";
+                else
+                    StatusText.Text = $"Переход к лексеме: строка {token.Line}, позиция {token.StartPosition}";
             }
         }
 
@@ -834,14 +1022,52 @@ namespace TextEditor
             }
         }
 
+        // Эти два обработчика нужны, если замените MouseDoubleClick на SelectionChanged в XAML.
+        private void ResultsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ResultsGrid.SelectedItem is Token token)
+            {
+                NavigateToPosition(token.Line, token.StartPosition);
+
+                if (token.IsError)
+                    StatusText.Text = $"Переход к лексической ошибке: строка {token.Line}, позиция {token.StartPosition}";
+                else
+                    StatusText.Text = $"Переход к лексеме: строка {token.Line}, позиция {token.StartPosition}";
+            }
+        }
+
+        private void SyntaxErrorsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (SyntaxErrorsGrid.SelectedItem is SyntaxErrorDisplay error)
+            {
+                NavigateToPosition(error.Line, error.Position);
+                StatusText.Text = $"Переход к ошибке: {error.Location}";
+            }
+        }
+
         private void Help_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("Справка", "F5 - запуск анализа\nCtrl+N - новый файл\nCtrl+O - открыть\nCtrl+S - сохранить\nГрамматика: f\"{id:.Ne}\"");
+            ShowInfoWindow(
+                "Справка",
+                "F5 — запуск анализа\n" +
+                "Ctrl+N — новый файл\n" +
+                "Ctrl+O — открыть\n" +
+                "Ctrl+S — сохранить\n\n" +
+                "Допустимый формат:\n" +
+                "f\"{id:.Ne}\""
+            );
         }
 
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            ShowInfoWindow("О программе", "ЛАБОРАТОРНАЯ РАБОТА №3\nСинтаксический анализатор\nВариант: f\"{id:.Ne}\"\nАвтор: Петрухно В.К.\nГруппа: АП-327\nДата: 2026");
+            ShowInfoWindow(
+                "О программе",
+                "ЛАБОРАТОРНАЯ РАБОТА №3\n" +
+                "Синтаксический анализатор\n" +
+                "Вариант: f\"{id:.Ne}\"\n" +
+                "Метод анализа: граф автоматной грамматики\n" +
+                "Нейтрализация ошибок: метод Айронса"
+            );
         }
 
         private void EditorBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -851,48 +1077,64 @@ namespace TextEditor
             ClearResults();
         }
 
-        private void EditorBox_SelectionChanged(object sender, RoutedEventArgs e) => UpdateStatusBar();
+        private void EditorBox_SelectionChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateStatusBar();
+        }
 
         private void UpdateStatusBar()
         {
             try
             {
                 TextPointer caret = EditorBox.CaretPosition;
-                if (caret != null)
+                TextPointer lineStart = caret.GetLineStartPosition(0);
+
+                int line = 1;
+                TextPointer walker = lineStart;
+
+                while (walker != null)
                 {
-                    int line = 1;
-                    TextPointer ptr = caret.GetLineStartPosition(0);
-                    while (ptr != null)
-                    {
-                        TextPointer prev = ptr.GetLineStartPosition(-1);
-                        if (prev == null || prev.CompareTo(ptr) == 0) break;
-                        ptr = prev;
-                        line++;
-                    }
-                    int col = 1;
-                    if (ptr != null)
-                    {
-                        TextPointer start = ptr;
-                        TextPointer cur = start;
-                        while (cur != null && cur.CompareTo(caret) < 0)
-                        {
-                            col++;
-                            cur = cur.GetNextInsertionPosition(LogicalDirection.Forward);
-                        }
-                    }
-                    CursorPositionText.Text = $"Стр: {line}, Стб: {col}";
+                    TextPointer prev = walker.GetLineStartPosition(-1);
+                    if (prev == null)
+                        break;
+
+                    walker = prev;
+                    line++;
                 }
-                FileInfoText.Text = string.IsNullOrEmpty(currentFilePath) ? "Новый файл" : Path.GetFileName(currentFilePath);
-                if (isTextChanged && !FileInfoText.Text.EndsWith("*"))
-                    FileInfoText.Text += "*";
+
+                int col = 1;
+                TextPointer temp = lineStart;
+
+                while (temp != null && temp.CompareTo(caret) < 0)
+                {
+                    TextPointer next = temp.GetNextInsertionPosition(LogicalDirection.Forward);
+                    if (next == null)
+                        break;
+
+                    temp = next;
+                    col++;
+                }
+
+                CursorPositionText.Text = $"Стр: {line}, Стб: {col}";
             }
-            catch { CursorPositionText.Text = "Стр: 1, Стб: 1"; }
+            catch
+            {
+                CursorPositionText.Text = "Стр: 1, Стб: 1";
+            }
+
+            FileInfoText.Text = string.IsNullOrEmpty(currentFilePath)
+                ? "Новый документ"
+                : Path.GetFileName(currentFilePath);
+
+            if (isTextChanged && !FileInfoText.Text.EndsWith("*"))
+                FileInfoText.Text += "*";
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
             if (!PromptSaveChanges())
                 e.Cancel = true;
+
             base.OnClosing(e);
         }
     }
