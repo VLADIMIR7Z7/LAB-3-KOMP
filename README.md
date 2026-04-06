@@ -162,7 +162,7 @@ f"{id:.Ne}"
 
 ### 7.2. Граф автоматной грамматики
 
-<img width="1159" height="495" alt="image" src="https://github.com/user-attachments/assets/aaf052de-dd7c-44c3-976b-5f34bfc9c6ac" />
+<img width="795" height="338" alt="image" src="https://github.com/user-attachments/assets/70e09452-ad0a-46cc-9035-2c33a0fdb6e8" />
 
 # Описание состояний графа автоматной грамматики
 - S — начальное состояние, ожидание символа f
