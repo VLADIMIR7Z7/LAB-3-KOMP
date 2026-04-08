@@ -75,12 +75,21 @@ f"{<идентификатор>:.<цифры>e}"
 
 ### 5.1. Грамматика G = (VT, VN, P, S)
 
+**Множество терминалов VT:**
+
+{ f, ", {, }, :, ., e, a..z, 0..9 }
+
+**Множество нетерминалов VN:**
+
+{ START, QUOTE_OPEN, BRACE_OPEN, ID, IDTAIL, COLON_PART, DOT_PART, NUM, NUMTAIL, BRACE_CLOSE, QUOTE_CLOSE, LETTER, DIGIT }
+
+**Грамматика** 
 - G((f, ", {, }, :, ., e, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ),
 - ( START, QUOTE_OPEN, BRACE_OPEN, ID, IDTAIL, COLON_PART, DOT_PART, NUM, NUMTAIL, BRACE_CLOSE, QUOTE_CLOSE, LETTER, DIGIT ),
 - P,START)
 ```
 
-**Множество правил P:**
+Множество правил P:
 - P:
 - <START>       -> f <QUOTE_OPEN>
 - <QUOTE_OPEN>  -> " <BRACE_OPEN>
@@ -96,7 +105,7 @@ f"{<идентификатор>:.<цифры>e}"
 
 - <LETTER> -> a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r | s | t | u | v | w | x | y | z
 - <DIGIT>  -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
-
+```
 ### 5.2. Пояснение к грамматике
 
 Грамматика описывает структуру строки формата f"{id:.Ne}" и задаёт последовательность разбора входной строки.
