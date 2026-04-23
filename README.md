@@ -77,7 +77,10 @@ f"{<идентификатор>:.<цифры>e}"
 
 **Множество терминалов VT:**
 
-{ f, ", {, }, :, ., e, a..z, 0..9 }
+{ 'f', '"', '{', '}', ':', '.', 'e',
+  'a','b','c','d','e','f','g','h','i','j','k','l','m',
+  'n','o','p','q','r','s','t','u','v','w','x','y','z',
+  '0','1','2','3','4','5','6','7','8','9' }
 
 **Множество нетерминалов VN:**
 
@@ -89,22 +92,26 @@ f"{<идентификатор>:.<цифры>e}"
 - P,START)
 ```
 
-Множество правил P:
-- P:
-- <START>       -> f <QUOTE_OPEN>
-- <QUOTE_OPEN>  -> " <BRACE_OPEN>
-- <BRACE_OPEN>  -> { <ID>
+- <START>       -> 'f' <QUOTE_OPEN>
+- <QUOTE_OPEN>  -> '"' <BRACE_OPEN>
+- <BRACE_OPEN>  -> '{' <ID>
+
 - <ID>          -> <LETTER> <IDTAIL>
 - <IDTAIL>      -> <LETTER> <IDTAIL> | <COLON_PART>
-- <COLON_PART>  -> : <DOT_PART>
-- <DOT_PART>    -> . <NUM>
-- <NUM>         -> <DIGIT> <NUMTAIL>
-- <NUMTAIL>     -> <DIGIT> <NUMTAIL> | e <BRACE_CLOSE>
-- <BRACE_CLOSE> -> } <QUOTE_CLOSE>
-- <QUOTE_CLOSE> -> "
 
-- <LETTER> -> a | b | c | d | e | f | g | h | i | j | k | l | m | n | o | p | q | r | s | t | u | v | w | x | y | z
-- <DIGIT>  -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+- <COLON_PART>  -> ':' <DOT_PART>
+- <DOT_PART>    -> '.' <NUM>
+
+- <NUM>         -> <DIGIT> <NUMTAIL>
+- <NUMTAIL>     -> <DIGIT> <NUMTAIL> | 'e' <BRACE_CLOSE>
+
+- <BRACE_CLOSE> -> '}' <QUOTE_CLOSE>
+- <QUOTE_CLOSE> -> '"'
+
+- <LETTER> -> 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' |
+            'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z'
+
+- <DIGIT>  -> '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 ```
 ### 5.2. Пояснение к грамматике
 
