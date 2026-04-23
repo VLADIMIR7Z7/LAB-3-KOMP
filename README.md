@@ -82,8 +82,8 @@ f"{<идентификатор>:.<цифры>e}"
 
 **Множество нетерминалов VN:**
 
- { < START >, <QUOTE_OPEN>, <BRACE_OPEN>, <ID>, <IDTAIL>, <COLON_PART>, <DOT_PART>, <NUM>, <NUMTAIL>, <BRACE_CLOSE>, <QUOTE_CLOSE>, <CLOSE>, <LETTER>, <DIGIT> }
- <img width="1210" height="33" alt="image" src="https://github.com/user-attachments/assets/d68f1782-00a2-4300-8d24-275bc14c3667" />
+    { < START >, <QUOTE_OPEN>, <BRACE_OPEN>, <ID>, <IDTAIL>, <COLON_PART>, <DOT_PART>, <NUM>, <NUMTAIL>, <BRACE_CLOSE>, <QUOTE_CLOSE>, <CLOSE>, <LETTER>, <DIGIT> }
+
 
 ```
 
