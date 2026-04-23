@@ -101,8 +101,10 @@ f"{<идентификатор>:.<цифры>e}"
 - <NUMTAIL>     -> <DIGIT> <NUMTAIL> | 'e' <BRACE_CLOSE>
 
 - <BRACE_CLOSE> -> '}' <QUOTE_CLOSE>
-- <QUOTE_CLOSE> -> '"'
+- <QUOTE_CLOSE> -> '"' <CLOSE>
 - <CLOSE> -> ';'
+
+
 
 <LETTER> -> 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' |
             'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
